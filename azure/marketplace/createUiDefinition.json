@@ -39,18 +39,30 @@
             }
           },
           {
-            "name": "vmAdminPassword",
-            "type": "Microsoft.Common.PasswordBox",
-            "label": "VM Admin Password",
-            "toolTip": "Password for the Virtual Machine",
+            "name": "adminAccount",
+            "type": "Microsoft.Compute.CredentialsCombo",
+            "label": {
+              "password": "VM Admin Password",
+              "sshKey": "SSH Public Key"
+            },
+            "toolTip": {
+              "password": "Password for the Virtual Machine",
+              "sshKey": "SSH Public Key for the Virtual Machine"
+            },
+            "defaultValue": {
+              "authenticationType": "sshPublicKey"
+            },
             "constraints": {
-              "required": true,
-              "regex": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^\\da-zA-Z]).{12,}$",
-              "validationMessage": "Password must be at least 12 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+              "required": {
+                "username": false,
+                "password": true,
+                "sshKey": true
+              }
             },
             "options": {
               "hideConfirmation": false
-            }
+            },
+            "osPlatform": "Linux"
           },
           {
             "name": "kestraUser",
@@ -121,8 +133,10 @@
     ],
     "outputs": {
       "location": "[location()]",
+      "authenticationType": "[steps('kestraSettings').adminAccount.authenticationType]",
       "adminUsername": "[steps('kestraSettings').vmAdminUsername]",
-      "adminPassword": "[steps('kestraSettings').vmAdminPassword]",
+      "adminPassword": "[steps('kestraSettings').adminAccount.password]",
+      "sshPublicKey": "[steps('kestraSettings').adminAccount.sshKey]",
       "vmSize": "[steps('kestraSettings').vmSize.value]",
       "kestraBasicUser": "[steps('kestraSettings').kestraUser]",
       "kestraBasicPassword": "[steps('kestraSettings').kestraPassword]",

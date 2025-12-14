@@ -9,6 +9,17 @@
         "description": "Location for all resources."
       }
     },
+    "authenticationType": {
+      "type": "string",
+      "defaultValue": "password",
+      "allowedValues": [
+        "password",
+        "ssh"
+      ],
+      "metadata": {
+        "description": "The type of authentication to use on the Virtual Machine."
+      }
+    },
     "adminUsername": {
       "type": "string",
       "metadata": {
@@ -17,14 +28,16 @@
     },
     "adminPassword": {
       "type": "secureString",
+      "defaultValue": "",
       "metadata": {
-        "description": "The administrator password for the Virtual Machine. Required by Azure even if SSH key is used."
+        "description": "The administrator password for the Virtual Machine. Required if authenticationType is 'password'."
       }
     },
     "sshPublicKey": {
       "type": "secureString",
+      "defaultValue": "",
       "metadata": {
-        "description": "The SSH Public Key used for secure authentication to the Virtual Machine."
+        "description": "The SSH Public Key. Required if authenticationType is 'ssh'."
       }
     },
     "storageAccountName": {
@@ -145,7 +158,15 @@
     "publicIpName": "kestra-ip-std",
     "nicName": "kestra-nic",
     "privateDnsZoneName": "kestra.private.postgres.database.azure.com",
-    "dnsLinkName": "[concat(variables('privateDnsZoneName'), '/', variables('vnetName'), '-link')]"
+    "dnsLinkName": "[concat(variables('privateDnsZoneName'), '/', variables('vnetName'), '-link')]",
+    "sshConfiguration": {
+      "publicKeys": [
+        {
+          "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+          "keyData": "[parameters('sshPublicKey')]"
+        }
+      ]
+    }
   },
   "resources": [
     {
@@ -358,17 +379,10 @@
         "osProfile": {
           "computerName": "[variables('vmName')]",
           "adminUsername": "[parameters('adminUsername')]",
-          "adminPassword": "[parameters('adminPassword')]",
+          "adminPassword": "[if(equals(parameters('authenticationType'), 'password'), parameters('adminPassword'), json('null'))]",
           "linuxConfiguration": {
-            "disablePasswordAuthentication": false,
-            "ssh": {
-              "publicKeys": [
-                {
-                  "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
-                  "keyData": "[parameters('sshPublicKey')]"
-                }
-              ]
-            }
+            "disablePasswordAuthentication": "[equals(parameters('authenticationType'), 'ssh')]",
+            "ssh": "[if(equals(parameters('authenticationType'), 'ssh'), variables('sshConfiguration'), json('null'))]"
           },
           "customData": "[base64(concat('#!/bin/bash\n','set -e\n','apt-get update && apt-get install -y docker.io\n','systemctl start docker && systemctl enable docker\n','usermod -aG docker ', parameters('adminUsername'), '\n','mkdir -p /home/', parameters('adminUsername'), '/config\n','cat <<EOF > /home/', parameters('adminUsername'), '/config/application.yml\n','datasources:\n','  postgres:\n','    url: jdbc:postgresql://', reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('postgresInstanceName')), '2024-08-01').fullyQualifiedDomainName, ':5432/', parameters('databaseName'), '\n','    username: ', parameters('postgresAdmin'), '\n','    password: ', parameters('postgresPassword'), '\n','kestra:\n','  server:\n','    basic-auth:\n','      enabled: true\n','      username: ', parameters('kestraBasicUser'), '\n','      password: ', parameters('kestraBasicPassword'), '\n','  repository:\n','    type: postgres\n','  queue:\n','    type: postgres\n','  storage:\n','    type: azure\n','    azure:\n','      endpoint: ', reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-05-01').primaryEndpoints.blob, '\n','      container: ', parameters('containerName'), '\n','      connection-string: \"DefaultEndpointsProtocol=https;AccountName=', parameters('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-05-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage, '\"\n','  tasks:\n','    tmp-dir:\n','      path: /tmp/kestra-wd/tmp\n','EOF\n','docker run -d --restart=always -p 8080:8080 --user=root -v /var/run/docker.sock:/var/run/docker.sock -v /home/', parameters('adminUsername'), '/config/application.yml:/etc/config/application.yml kestra/kestra:latest server standalone --config /etc/config/application.yml\n'))]"
         },

@@ -1,0 +1,148 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "basics": [
+      {}
+    ],
+    "steps": [
+      {
+        "name": "kestraSettings",
+        "label": "Kestra Configuration",
+        "subLabel": {
+          "preValidation": "Configure your Kestra instance settings",
+          "postValidation": "Done"
+        },
+        "elements": [
+          {
+            "name": "vmSize",
+            "type": "Microsoft.Compute.SizeSelector",
+            "label": "Virtual Machine Size",
+            "toolTip": "Select the size of the VM running Kestra.",
+            "osPlatform": "Linux",
+            "recommendedSizes": [
+              "Standard_B2s",
+              "Standard_D2s_v3"
+            ]
+          },
+          {
+            "name": "vmAdminUsername",
+            "type": "Microsoft.Common.TextBox",
+            "label": "VM Admin Username",
+            "toolTip": "Username for the Virtual Machine",
+            "defaultValue": "kestra_admin",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-z][a-z0-9_-]*$",
+              "validationMessage": "Username must start with a letter and contain only lowercase letters, numbers, hyphens, or underscores."
+            }
+          },
+          {
+            "name": "adminAccount",
+            "type": "Microsoft.Compute.CredentialsCombo",
+            "label": {
+              "password": "VM Admin Password",
+              "sshKey": "SSH Public Key"
+            },
+            "toolTip": {
+              "password": "Password for the Virtual Machine",
+              "sshKey": "SSH Public Key for the Virtual Machine"
+            },
+            "defaultValue": {
+              "authenticationType": "sshPublicKey"
+            },
+            "constraints": {
+              "required": {
+                "username": false,
+                "password": true,
+                "sshKey": true
+              }
+            },
+            "options": {
+              "hideConfirmation": false
+            },
+            "osPlatform": "Linux"
+          },
+          {
+            "name": "kestraUser",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Kestra Web User",
+            "toolTip": "Email address for the Kestra Web UI Admin",
+            "defaultValue": "admin@kestra.io",
+            "constraints": {
+              "required": true,
+              "regex": "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}$",
+              "validationMessage": "Must be a valid email address."
+            }
+          },
+          {
+            "name": "kestraPassword",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": "Kestra Web Password",
+            "toolTip": "Password for the Kestra Web UI",
+            "constraints": {
+              "required": true,
+              "regex": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^\\da-zA-Z]).{12,}$",
+              "validationMessage": "Password must be at least 12 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character."
+            }
+          }
+        ]
+      },
+      {
+        "name": "dbSettings",
+        "label": "Database Configuration",
+        "elements": [
+          {
+            "name": "postgresAdmin",
+            "type": "Microsoft.Common.TextBox",
+            "label": "PostgreSQL Admin Username",
+            "toolTip": "The administrator username for the PostgreSQL database.",
+            "defaultValue": "kestra",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-z][a-z0-9_]*$",
+              "validationMessage": "Username must start with a letter and contain only lowercase letters, numbers, or underscores."
+            }
+          },
+          {
+            "name": "postgresPassword",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": "PostgreSQL Admin Password",
+            "toolTip": "The password for the PostgreSQL database admin account.",
+            "constraints": {
+              "required": true,
+              "regex": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^\\da-zA-Z]).{12,}$",
+              "validationMessage": "Must meet Azure complexity requirements (12+ chars, mixed case, special char)."
+            }
+          },
+          {
+            "name": "authorizedIp",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Authorized Source IP (CIDR)",
+            "toolTip": "IP address allowed to access Kestra. Use * for open access.",
+            "defaultValue": "*",
+            "constraints": {
+              "required": true,
+              "regex": "^((\\d{1,3}\\.){3}\\d{1,3}(\\/([0-9]|[1-2][0-9]|3[0-2]))?|\\*)$",
+              "validationMessage": "Must be a valid IP address (e.g. 1.2.3.4), CIDR range (e.g. 1.2.3.4/32), or '*'."
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "location": "[location()]",
+      "authenticationType": "[steps('kestraSettings').adminAccount.authenticationType]",
+      "adminUsername": "[steps('kestraSettings').vmAdminUsername]",
+      "adminPassword": "[steps('kestraSettings').adminAccount.password]",
+      "sshPublicKey": "[steps('kestraSettings').adminAccount.sshKey]",
+      "vmSize": "[steps('kestraSettings').vmSize.value]",
+      "kestraBasicUser": "[steps('kestraSettings').kestraUser]",
+      "kestraBasicPassword": "[steps('kestraSettings').kestraPassword]",
+      "postgresAdmin": "[steps('dbSettings').postgresAdmin]",
+      "postgresPassword": "[steps('dbSettings').postgresPassword]",
+      "authorizedSourceIpCidr": "[steps('dbSettings').authorizedIp]"
+    }
+  }
+}

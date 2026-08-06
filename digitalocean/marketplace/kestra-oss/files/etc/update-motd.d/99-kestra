@@ -1,0 +1,11 @@
+#!/bin/sh
+
+cat <<'EOF'
+
+  Kestra OSS is running on this Droplet.
+
+  Web UI credentials: /root/.digitalocean_kestra_credentials
+  Docs:                https://kestra.io/docs
+  Slack support:       https://kestra.io/slack
+
+EOF

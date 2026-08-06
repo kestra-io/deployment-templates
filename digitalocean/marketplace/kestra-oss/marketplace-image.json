@@ -1,0 +1,102 @@
+{
+  "variables": {
+    "do_token": "{{env `DIGITALOCEAN_TOKEN`}}",
+    "image_name": "kestra-oss-snapshot-{{timestamp}}",
+    "region": "nyc3",
+    "size": "s-1vcpu-2gb",
+    "source_image": "ubuntu-24-04-x64",
+    "kestra_version": "v1.3.30",
+    "apt_packages": "ca-certificates curl gnupg ufw",
+    "application_name": "Kestra OSS",
+    "application_version": ""
+  },
+  "sensitive-variables": ["do_token"],
+  "builders": [
+    {
+      "type": "digitalocean",
+      "api_token": "{{user `do_token`}}",
+      "image": "{{user `source_image`}}",
+      "region": "{{user `region`}}",
+      "size": "{{user `size`}}",
+      "ssh_username": "root",
+      "snapshot_name": "{{user `image_name`}}"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "expect_disconnect": true,
+      "inline": [
+        "cloud-init status --wait || true"
+      ]
+    },
+    {
+      "type": "shell",
+      "pause_before": "10s",
+      "inline": [
+        "cloud-init status --wait"
+      ]
+    },
+    {
+      "type": "file",
+      "source": "files/etc/",
+      "destination": "/etc/"
+    },
+    {
+      "type": "file",
+      "source": "files/var/",
+      "destination": "/var/"
+    },
+    {
+      "type": "shell",
+      "environment_vars": [
+        "DEBIAN_FRONTEND=noninteractive",
+        "LC_ALL=C",
+        "LANG=en_US.UTF-8",
+        "LC_CTYPE=en_US.UTF-8"
+      ],
+      "inline": [
+        "apt-get -qqy update",
+        "apt-get -qqy -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' full-upgrade",
+        "apt-get -qqy -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install {{user `apt_packages`}}",
+        "apt-get -qqy clean"
+      ]
+    },
+    {
+      "type": "shell",
+      "environment_vars": [
+        "kestra_version={{user `kestra_version`}}",
+        "application_name={{user `application_name`}}",
+        "application_version={{user `application_version`}}",
+        "DEBIAN_FRONTEND=noninteractive",
+        "LC_ALL=C",
+        "LANG=en_US.UTF-8",
+        "LC_CTYPE=en_US.UTF-8"
+      ],
+      "scripts": [
+        "scripts/01-kestra-install.sh",
+        "scripts/02-ufw-kestra.sh"
+      ]
+    },
+    {
+      "type": "shell",
+      "inline": [
+        "apt-get -qqy purge droplet-agent || true",
+        "find /opt/digitalocean/ -type d -empty -delete || true"
+      ]
+    },
+    {
+      "type": "shell",
+      "environment_vars": [
+        "DEBIAN_FRONTEND=noninteractive",
+        "LC_ALL=C",
+        "LANG=en_US.UTF-8",
+        "LC_CTYPE=en_US.UTF-8"
+      ],
+      "scripts": [
+        "scripts/90-cleanup.sh",
+        "scripts/99-img-check.sh"
+      ]
+    }
+  ]
+}

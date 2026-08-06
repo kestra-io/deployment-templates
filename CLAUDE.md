@@ -20,6 +20,7 @@ gcp/terraform/gcp-aiven/         Kestra on GCP with Aiven-managed data backend, 
   opensource/                      Kestra OSS + Aiven for Postgres
   enterprise/                      Kestra Enterprise + Aiven for Kafka + Aiven for OpenSearch (needs an EE license)
 gcp/terraform/infrastructure-manager/vm-sql-gcs/   VM + Cloud SQL + GCS template meant for GCP Infrastructure Manager
+digitalocean/marketplace/kestra-oss/   Packer template building a DigitalOcean Marketplace 1-Click Droplet image (Kestra OSS + bundled Postgres via docker compose) — not Terraform, build with `packer build marketplace-image.json`
 ```
 
 Every terraform module has its own `README.md` with prerequisites, resources created, and exact `terraform apply` invocation (secrets/tfvars file needed, required CLI profile, etc.) — read the module's own README before changing or running it, not just this file.
@@ -50,3 +51,4 @@ No lint/test suite beyond `terraform fmt`. Validate changes with `terraform plan
 - `azure/arm-template/` and `azure/marketplace/` contain two versions of the same underlying VM deployment — the marketplace one adds `createUiDefinition.json` and marketplace-required parameters (`_artifactsLocation`, `_artifactsLocationSasToken`). A change to the deployment logic (VM sizing, extensions, outputs) generally needs to land in both, or the two will drift.
 - Only one CI workflow exists (`.github/workflows/upload-templates.yaml`): on push to `main`, if `aws/cloudformation/ec2-rds-s3/kestra-oss.yaml` changed, it's uploaded to the `kestra-deployment-templates` S3 bucket. No other template in the repo is auto-published — everything else is consumed by users copying the module directly.
 - `.gitignore` also excludes `Taskfile.yml`, `.tool-versions`, and `scripts/install-dependencies.sh` even though they're tracked (pre-existing exception) — don't be surprised these show as untracked-looking in some tooling despite being committed.
+- `digitalocean/marketplace/kestra-oss/` is Packer, not Terraform — it isn't wired into `Taskfile.yml`/`task terraform`, build it directly with `packer build marketplace-image.json` per its own README. Its `scripts/90-cleanup.sh` and `scripts/99-img-check.sh` are vendored unmodified from `digitalocean/marketplace-partners` — don't hand-edit them, DigitalOcean's image review expects their official versions. Kestra's admin/Postgres passwords are deliberately generated at Droplet first-boot (cloud-init `per-instance` script), not baked into the snapshot at build time — every Droplet from this image must get its own secrets.

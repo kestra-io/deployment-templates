@@ -19,6 +19,8 @@ datasources:
     password: ${db_password}
 
 kestra:
+  encryption:
+    secret-key: ${kestra_encryption_key}
   server:
     basic-auth:
       enabled: true

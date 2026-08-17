@@ -10,12 +10,20 @@ provider "azurerm" {
   subscription_id                 = var.subscription_id
   resource_provider_registrations = "none"
   resource_providers_to_register = [
+    "Microsoft.ApiManagement",
     "Microsoft.Cdn",
     "Microsoft.Compute",
+    "Microsoft.CognitiveServices",
     "Microsoft.DBforPostgreSQL",
+    "Microsoft.Insights",
     "Microsoft.Network",
+    "Microsoft.OperationalInsights",
     "Microsoft.Storage",
   ]
+}
+
+provider "azapi" {
+  subscription_id = var.subscription_id
 }
 
 resource "azurerm_resource_group" "rg" {
@@ -27,6 +35,16 @@ resource "random_string" "suffix" {
   length  = 6
   special = false
   upper   = false
+}
+
+resource "random_bytes" "kestra_encryption_key" {
+  count = var.kestra_encryption_key == null ? 1 : 0
+
+  length = 32
+}
+
+locals {
+  kestra_encryption_key = var.kestra_encryption_key != null ? var.kestra_encryption_key : random_bytes.kestra_encryption_key[0].base64
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -223,6 +241,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
     db_name                = azurerm_postgresql_flexible_server_database.kestra_db.name
     db_admin               = "kestra"
     db_password            = var.postgres_password
+    kestra_encryption_key  = local.kestra_encryption_key
     kestra_password        = var.kestra_password
     storage_account_name   = azurerm_storage_account.store.name
     storage_container_name = azurerm_storage_container.container.name

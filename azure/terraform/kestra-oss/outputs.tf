@@ -13,3 +13,16 @@ output "ssh_command" {
 output "db_hostname" {
   value = azurerm_postgresql_flexible_server.db.fqdn
 }
+
+output "model_gateway_url" {
+  value = var.enable_model_gateway ? "${azurerm_api_management.model_gateway[0].gateway_url}/${azurerm_api_management_api.model_gateway[0].path}" : null
+}
+
+output "model_gateway_chat_completions_url" {
+  value = var.enable_model_gateway ? "${azurerm_api_management.model_gateway[0].gateway_url}/${azurerm_api_management_api.model_gateway[0].path}/chat/completions" : null
+}
+
+output "model_gateway_subscription_key" {
+  value     = var.enable_model_gateway ? azurerm_api_management_subscription.model_gateway[0].primary_key : null
+  sensitive = true
+}

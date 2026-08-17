@@ -17,12 +17,6 @@ variable "admin_vm_username" {
   default     = "kestra"
 }
 
-variable "admin_vm_password" {
-  description = "VM Admin Password (not used if SSH key provided, but required by Azure API)"
-  sensitive   = true
-  default     = "ChangeMe123!"
-}
-
 variable "ssh_public_key" {
   description = "SSH Public Key"
 }
@@ -38,11 +32,37 @@ variable "kestra_password" {
 }
 
 variable "authorized_source_ip" {
-  description = "IP address/CIDR allowed to access SSH and Kestra Web. Use * for all."
-  default     = "*"
+  description = "Trusted IP address or CIDR allowed to access SSH and the Kestra web interface"
 }
 
 variable "db_sku_name" {
   description = "The SKU Name for the PostgreSQL Flexible Server. Examples: B_Standard_B1ms, GP_Standard_D2ds_v4, MO_Standard_E4s_v3"
   default     = "B_Standard_B1ms"
+}
+
+variable "vm_size" {
+  description = "Azure VM size used to run Kestra"
+  default     = "Standard_B2s"
+}
+
+variable "kestra_image" {
+  description = "Kestra container image to run"
+  default     = "kestra/kestra:latest"
+}
+
+variable "enable_front_door" {
+  description = "Expose Kestra through an Azure Front Door managed HTTPS endpoint"
+  type        = bool
+  default     = true
+}
+
+variable "front_door_sku_name" {
+  description = "Azure Front Door SKU used for the managed HTTPS endpoint"
+  type        = string
+  default     = "Standard_AzureFrontDoor"
+
+  validation {
+    condition     = contains(["Standard_AzureFrontDoor", "Premium_AzureFrontDoor"], var.front_door_sku_name)
+    error_message = "front_door_sku_name must be Standard_AzureFrontDoor or Premium_AzureFrontDoor."
+  }
 }

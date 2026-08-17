@@ -3,11 +3,19 @@
 #   -var="ssh_public_key=$(cat <path_to_pub_key>)" \
 #   -var="postgres_password=<custom_password>" \
 #   -var='kestra_password=<custom_password>' \
-#   -var='admin_vm_password=<custom_password>'
+#   -var='authorized_source_ip=<trusted_ip_or_cidr>'
 
 provider "azurerm" {
   features {}
-  subscription_id = var.subscription_id
+  subscription_id                 = var.subscription_id
+  resource_provider_registrations = "none"
+  resource_providers_to_register = [
+    "Microsoft.Cdn",
+    "Microsoft.Compute",
+    "Microsoft.DBforPostgreSQL",
+    "Microsoft.Network",
+    "Microsoft.Storage",
+  ]
 }
 
 resource "azurerm_resource_group" "rg" {
@@ -40,6 +48,7 @@ resource "azurerm_subnet" "db_subnet" {
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = ["10.10.2.0/24"]
+  service_endpoints    = ["Microsoft.Storage"]
 
   delegation {
     name = "fs"
@@ -78,6 +87,22 @@ resource "azurerm_network_security_group" "nsg" {
     source_address_prefix      = var.authorized_source_ip
     destination_address_prefix = "*"
   }
+
+  dynamic "security_rule" {
+    for_each = var.enable_front_door ? [1] : []
+
+    content {
+      name                       = "AllowAzureFrontDoor"
+      priority                   = 1020
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "8080"
+      source_address_prefix      = "AzureFrontDoor.Backend"
+      destination_address_prefix = "*"
+    }
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "nsg_link" {
@@ -98,12 +123,12 @@ resource "azurerm_private_dns_zone_virtual_network_link" "dns_link" {
 }
 
 resource "azurerm_postgresql_flexible_server" "db" {
-  name                   = "kestra-db-${random_string.suffix.result}"
-  resource_group_name    = azurerm_resource_group.rg.name
-  location               = azurerm_resource_group.rg.location
-  version                = "16"
-  delegated_subnet_id    = azurerm_subnet.db_subnet.id
-  private_dns_zone_id    = azurerm_private_dns_zone.dns.id
+  name                = "kestra-db-${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  version             = "16"
+  delegated_subnet_id = azurerm_subnet.db_subnet.id
+  private_dns_zone_id = azurerm_private_dns_zone.dns.id
 
   public_network_access_enabled = false
 
@@ -111,7 +136,11 @@ resource "azurerm_postgresql_flexible_server" "db" {
   administrator_password = var.postgres_password
   storage_mb             = 32768
 
-  sku_name               = var.db_sku_name
+  sku_name = var.db_sku_name
+
+  lifecycle {
+    ignore_changes = [zone]
+  }
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.dns_link]
 }
@@ -124,11 +153,12 @@ resource "azurerm_postgresql_flexible_server_database" "kestra_db" {
 }
 
 resource "azurerm_storage_account" "store" {
-  name                     = "kestrastore${random_string.suffix.result}"
-  resource_group_name      = azurerm_resource_group.rg.name
-  location                 = azurerm_resource_group.rg.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
+  name                            = "kestrastore${random_string.suffix.result}"
+  resource_group_name             = azurerm_resource_group.rg.name
+  location                        = azurerm_resource_group.rg.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  allow_nested_items_to_be_public = false
 }
 
 resource "azurerm_storage_container" "container" {
@@ -159,12 +189,11 @@ resource "azurerm_network_interface" "nic" {
 }
 
 resource "azurerm_linux_virtual_machine" "vm" {
-  name                = "kestra-vm"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  size                = "Standard_B2s"
-  admin_username      = var.admin_vm_username
-  admin_password      = var.admin_vm_password
+  name                            = "kestra-vm"
+  resource_group_name             = azurerm_resource_group.rg.name
+  location                        = azurerm_resource_group.rg.location
+  size                            = var.vm_size
+  admin_username                  = var.admin_vm_username
   disable_password_authentication = true
 
   network_interface_ids = [
@@ -198,5 +227,73 @@ resource "azurerm_linux_virtual_machine" "vm" {
     storage_account_name   = azurerm_storage_account.store.name
     storage_container_name = azurerm_storage_container.container.name
     storage_account_key    = azurerm_storage_account.store.primary_access_key
+    kestra_image           = var.kestra_image
   }))
+}
+
+resource "azurerm_cdn_frontdoor_profile" "kestra" {
+  count = var.enable_front_door ? 1 : 0
+
+  name                     = "kestra-frontdoor-${random_string.suffix.result}"
+  resource_group_name      = azurerm_resource_group.rg.name
+  sku_name                 = var.front_door_sku_name
+  response_timeout_seconds = 120
+}
+
+resource "azurerm_cdn_frontdoor_endpoint" "kestra" {
+  count = var.enable_front_door ? 1 : 0
+
+  name                     = "kestra-${random_string.suffix.result}"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.kestra[0].id
+}
+
+resource "azurerm_cdn_frontdoor_origin_group" "kestra" {
+  count = var.enable_front_door ? 1 : 0
+
+  name                     = "kestra-origin-group"
+  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.kestra[0].id
+
+  health_probe {
+    interval_in_seconds = 30
+    path                = "/ping"
+    protocol            = "Http"
+    request_type        = "GET"
+  }
+
+  load_balancing {
+    additional_latency_in_milliseconds = 50
+    sample_size                        = 4
+    successful_samples_required        = 3
+  }
+}
+
+resource "azurerm_cdn_frontdoor_origin" "kestra" {
+  count = var.enable_front_door ? 1 : 0
+
+  name                          = "kestra-origin"
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.kestra[0].id
+  enabled                       = true
+
+  certificate_name_check_enabled = false
+  host_name                      = azurerm_public_ip.pip.ip_address
+  http_port                      = 8080
+  origin_host_header             = azurerm_public_ip.pip.ip_address
+  priority                       = 1
+  weight                         = 1000
+}
+
+resource "azurerm_cdn_frontdoor_route" "kestra" {
+  count = var.enable_front_door ? 1 : 0
+
+  name                          = "kestra-route"
+  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.kestra[0].id
+  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.kestra[0].id
+  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.kestra[0].id]
+
+  enabled                = true
+  forwarding_protocol    = "HttpOnly"
+  https_redirect_enabled = true
+  link_to_default_domain = true
+  patterns_to_match      = ["/*"]
+  supported_protocols    = ["Http", "Https"]
 }

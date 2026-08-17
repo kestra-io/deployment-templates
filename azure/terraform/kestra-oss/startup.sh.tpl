@@ -39,11 +39,14 @@ kestra:
       path: "/tmp/kestra-wd/tmp"
 EOF
 
-docker run --pull=always --rm -d \
+chmod 600 /home/${admin_username}/config/application-azure-vm.yml
+
+docker run --pull=always -d \
   -p 8080:8080 \
   --user=root \
+  --restart=always \
   -e MICRONAUT_ENVIRONMENTS=application-azure-vm \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /home/${admin_username}/config/application-azure-vm.yml:/etc/config/application-azure-vm.yml \
   --name kestra \
-  kestra/kestra:latest server standalone --config /etc/config/application-azure-vm.yml
+  ${kestra_image} server standalone --config /etc/config/application-azure-vm.yml

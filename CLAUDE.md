@@ -20,6 +20,7 @@ gcp/terraform/gcp-aiven/         Kestra on GCP with Aiven-managed data backend, 
   opensource/                      Kestra OSS + Aiven for Postgres
   enterprise/                      Kestra Enterprise + Aiven for Kafka + Aiven for OpenSearch (needs an EE license)
 gcp/terraform/infrastructure-manager/vm-sql-gcs/   VM + Cloud SQL + GCS template meant for GCP Infrastructure Manager
+gcp/terraform/gcp-batch/                          GCP APIs, GCS bucket, service accounts and IAM for Kestra's Google Batch and Cloud Run task runners
 digitalocean/marketplace/kestra-oss/   Packer template building a DigitalOcean Marketplace 1-Click Droplet image (Kestra OSS + bundled Postgres via docker compose) — not Terraform, build with `packer build marketplace-image.json`
 ```
 
